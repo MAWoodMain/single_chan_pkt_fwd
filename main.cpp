@@ -54,7 +54,7 @@ uint32_t cp_nb_rx_bad;
 uint32_t cp_nb_rx_nocrc;
 uint32_t cp_up_pkt_fwd;
 
-enum sf_t { SF7=7, SF8, SF9, SF10, SF11, SF12 };
+enum sf_t {SF7=7, SF8, SF9, SF10, SF11, SF12 };
 
 /*******************************************************************************
  *
@@ -67,21 +67,21 @@ int ssPin = 6;
 int dio0  = 7;
 int RST   = 0;
 
-// Set spreading factor (SF7 - SF12)
-sf_t sf = SF7;
+// Set spreading factor (SF6 - SF12)
+sf_t sf = SF8;
 
 // Set center frequency
 uint32_t  freq = 868100000; // in Mhz! (868.1)
 
 // Set location
-float lat=0.0;
-float lon=0.0;
-int   alt=0;
+float lat=50.925015;
+float lon=-1.399346;
+int   alt=98;
 
 /* Informal status fields */
 static char platform[24]    = "Single Channel Gateway";  /* platform definition */
-static char email[40]       = "";                        /* used for contact email */
-static char description[64] = "";                        /* used for free form description */
+static char email[40]       = "mattcow12@googlemail.com";                        /* used for contact email */
+static char description[64] = "RPI test gateway";                        /* used for free form description */
 
 // define servers
 // TODO: use host names and dns
@@ -240,36 +240,39 @@ boolean receivePkt(char *payload)
 
 void SetupLoRa()
 {
-    
-    digitalWrite(RST, HIGH);
-    delay(100);
+    // Reset with reset being active low
     digitalWrite(RST, LOW);
+    delay(100);
+    digitalWrite(RST, HIGH);
     delay(100);
 
     byte version = readRegister(REG_VERSION);
 
-    if (version == 0x22) {
-        // sx1272
-        printf("SX1272 detected, starting.\n");
-        sx1272 = true;
+    printf("version %02x\n\r", version);
+    if (version == 0x12) {
+        // sx1276
+        printf("SX1276 detected, starting.\n");
+        sx1272 = false;
     } else {
         // sx1276?
-        digitalWrite(RST, LOW);
-        delay(100);
+        // Reset with reset being active high
         digitalWrite(RST, HIGH);
         delay(100);
+        digitalWrite(RST, LOW);
+        delay(100);
         version = readRegister(REG_VERSION);
-        if (version == 0x12) {
-            // sx1276
-            printf("SX1276 detected, starting.\n");
-            sx1272 = false;
+        if (version == 0x22) {
+            // sx1272
+            printf("SX1272 detected, starting.\n");
+            sx1272 = true;
         } else {
+            printf("version %02x\n\r", version);
             printf("Unrecognized transceiver.\n");
             //printf("Version: 0x%x\n",version);
             exit(1);
         }
     }
-
+    // Go into sleep mode to config
     writeRegister(REG_OPMODE, SX72_MODE_SLEEP);
 
     // set frequency
@@ -280,24 +283,16 @@ void SetupLoRa()
 
     writeRegister(REG_SYNC_WORD, 0x34); // LoRaWAN public sync word
 
-    if (sx1272) {
-        if (sf == SF11 || sf == SF12) {
-            writeRegister(REG_MODEM_CONFIG,0x0B);
-        } else {
-            writeRegister(REG_MODEM_CONFIG,0x0A);
-        }
-        writeRegister(REG_MODEM_CONFIG2,(sf<<4) | 0x04);
+    if (sf == SF11 || sf == SF12) {
+        writeRegister(REG_MODEM_CONFIG3,0x0C);
     } else {
-        if (sf == SF11 || sf == SF12) {
-            writeRegister(REG_MODEM_CONFIG3,0x0C);
-        } else {
-            writeRegister(REG_MODEM_CONFIG3,0x04);
-        }
-        //writeRegister(REG_MODEM_CONFIG,0x72); // Uses coding rate 4_5 not 4_6
-	writeRegister(REG_MODEM_CONFIG, 0x74);
-        //writeRegister(REG_MODEM_CONFIG2,(sf<<4) | 0x04);
-	writeRegister(REG_MODEM_CONFIG2, 0x84);
+        writeRegister(REG_MODEM_CONFIG3,0x04);
     }
+    //writeRegister(REG_MODEM_CONFIG,0x72); // Uses coding rate 4_5 not 4_6
+    writeRegister(REG_MODEM_CONFIG, 0x74);
+    writeRegister(REG_MODEM_CONFIG2,(sf<<4) | 0x04);
+    //printf("config2: %02x\n\r",(sf<<4) | 0x04);
+    //writeRegister(REG_MODEM_CONFIG2, 0x84);
 
     if (sf == SF10 || sf == SF11 || sf == SF12) {
         writeRegister(REG_SYMB_TIMEOUT_LSB,0x05);
@@ -382,12 +377,12 @@ void receivepacket() {
 
     long int SNR;
     int rssicorr;
-    
+
     delay(1000);
-    printf("Try to receive message\n");
+    //printf("Try to receive message\n");
     if(digitalRead(dio0) == 1)
     {
-	printf("Message received\n");
+        printf("Message received\n");
         if(receivePkt(message)) {
             byte value = readRegister(REG_PKT_SNR_VALUE);
             if( value & 0x80 ) // The SNR sign bit is 1
@@ -401,7 +396,7 @@ void receivepacket() {
                 // Divide by 4
                 SNR = ( value & 0xFF ) >> 2;
             }
-            
+
             if (sx1272) {
                 rssicorr = 139;
             } else {
@@ -471,33 +466,33 @@ void receivepacket() {
             buff_index += 14;
             /* Lora datarate & bandwidth, 16-19 useful chars */
             switch (sf) {
-            case SF7:
-                memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF7", 12);
-                buff_index += 12;
-                break;
-            case SF8:
-                memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF8", 12);
-                buff_index += 12;
-                break;
-            case SF9:
-                memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF9", 12);
-                buff_index += 12;
-                break;
-            case SF10:
-                memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF10", 13);
-                buff_index += 13;
-                break;
-            case SF11:
-                memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF11", 13);
-                buff_index += 13;
-                break;
-            case SF12:
-                memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF12", 13);
-                buff_index += 13;
-                break;
-            default:
-                memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF?", 12);
-                buff_index += 12;
+                case SF7:
+                    memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF7", 12);
+                    buff_index += 12;
+                    break;
+                case SF8:
+                    memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF8", 12);
+                    buff_index += 12;
+                    break;
+                case SF9:
+                    memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF9", 12);
+                    buff_index += 12;
+                    break;
+                case SF10:
+                    memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF10", 13);
+                    buff_index += 13;
+                    break;
+                case SF11:
+                    memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF11", 13);
+                    buff_index += 13;
+                    break;
+                case SF12:
+                    memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF12", 13);
+                    buff_index += 13;
+                    break;
+                default:
+                    memcpy((void *)(buff_up + buff_index), (void *)",\"datr\":\"SF?", 12);
+                    buff_index += 12;
             }
             memcpy((void *)(buff_up + buff_index), (void *)"BW125\"", 6);
             buff_index += 6;
