@@ -85,9 +85,9 @@ static char description[64] = "";                        /* used for free form d
 
 // define servers
 // TODO: use host names and dns
-#define SERVER1 "54.72.145.119"    // The Things Network: croft.thethings.girovito.nl
+#define SERVER1 "52.169.76.255"    // The Things Network: croft.thethings.girovito.nl
 //#define SERVER2 "192.168.1.10"      // local
-#define PORT 1700                   // The port on which to send data
+#define PORT 1901                   // The port on which to send data
 
 // #############################################
 // #############################################
@@ -293,8 +293,10 @@ void SetupLoRa()
         } else {
             writeRegister(REG_MODEM_CONFIG3,0x04);
         }
-        writeRegister(REG_MODEM_CONFIG,0x72);
-        writeRegister(REG_MODEM_CONFIG2,(sf<<4) | 0x04);
+        //writeRegister(REG_MODEM_CONFIG,0x72); // Uses coding rate 4_5 not 4_6
+	writeRegister(REG_MODEM_CONFIG, 0x74);
+        //writeRegister(REG_MODEM_CONFIG2,(sf<<4) | 0x04);
+	writeRegister(REG_MODEM_CONFIG2, 0x84);
     }
 
     if (sf == SF10 || sf == SF11 || sf == SF12) {
@@ -303,7 +305,7 @@ void SetupLoRa()
         writeRegister(REG_SYMB_TIMEOUT_LSB,0x08);
     }
     writeRegister(REG_MAX_PAYLOAD_LENGTH,0x80);
-    writeRegister(REG_PAYLOAD_LENGTH,PAYLOAD_LENGTH);
+    writeRegister(REG_PAYLOAD_LENGTH, 37);
     writeRegister(REG_HOP_PERIOD,0xFF);
     writeRegister(REG_FIFO_ADDR_PTR, readRegister(REG_FIFO_RX_BASE_AD));
 
@@ -380,9 +382,12 @@ void receivepacket() {
 
     long int SNR;
     int rssicorr;
-
+    
+    delay(1000);
+    printf("Try to receive message\n");
     if(digitalRead(dio0) == 1)
     {
+	printf("Message received\n");
         if(receivePkt(message)) {
             byte value = readRegister(REG_PKT_SNR_VALUE);
             if( value & 0x80 ) // The SNR sign bit is 1
@@ -538,6 +543,7 @@ int main () {
 
     wiringPiSetup () ;
     pinMode(ssPin, OUTPUT);
+    //pinMode(dio0, INPUT);
     pinMode(dio0, INPUT);
     pinMode(RST, OUTPUT);
 
